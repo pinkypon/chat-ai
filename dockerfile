@@ -24,8 +24,11 @@ COPY . .
 # 👉 Install PHP dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
-# 👉 Install and build front-end assets
+# 👉 Install and build front-end assets (Vite)
 RUN npm install && npm run build
+
+# 👉 Run Laravel database migrations
+RUN php artisan migrate --force
 
 # Set proper permissions
 RUN chown -R www-data:www-data /var/www/html \
