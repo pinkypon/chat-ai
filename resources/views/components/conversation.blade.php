@@ -1,0 +1,1 @@
+<div class="p-3 rounded-xl hover: cursor-pointer">{{ $slot }}</div>
