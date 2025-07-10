@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: chat-ai
+    env: php
+    plan: free
+    region: oregon
+    buildCommand: |
+      composer install
+      npm install
+      npm run build
+      php artisan migrate --force
+    startCommand: php artisan serve --host=0.0.0.0 --port=10000
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
