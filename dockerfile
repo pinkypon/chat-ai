@@ -39,3 +39,5 @@ EXPOSE 80
 
 # Start Apache server
 CMD php artisan migrate --force && apache2-foreground
+
+RUN php artisan config:clear && php artisan view:clear && php artisan optimize:clear
