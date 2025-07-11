@@ -14,6 +14,15 @@ Route::get('/', function () {
     return view('landing');
 });
 
+
+Route::get('/debug-env', function () {
+    return response()->json([
+        'APP_URL' => config('app.url'),
+        'APP_KEY' => config('app.key'),
+    ]);
+});
+
+
 // GET /chat — for guests or default conversation
 Route::middleware(['web'])->group(function () {
     Route::get('/chat', [ConversationController::class, 'show'])->name('chat');
