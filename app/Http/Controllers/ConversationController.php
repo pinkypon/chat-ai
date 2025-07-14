@@ -55,16 +55,12 @@ class ConversationController extends Controller
         ]);
     }
 
-
-
-
-
     public function send(Request $request)
     {
         $prompt = $request->input('prompt');
 
         // 🔸 Call your local AI API
-        $ai = Http::post('http://127.0.0.1:5050/generate', [
+        $ai = Http::post(env('AI_API_URL'), [
             'prompt' => $prompt,
         ]);
         $aiResponse = $ai->json()['response'] ?? 'No response from AI.';

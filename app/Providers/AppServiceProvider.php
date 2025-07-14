@@ -32,16 +32,5 @@ class AppServiceProvider extends ServiceProvider
         if (app()->environment('production')) {
             URL::forceScheme('https');
         }
-
-        // Log and customize the verification email
-        VerifyEmail::toMailUsing(function ($notifiable, $url) {
-            Log::info('🔗 Generated verification URL:', ['url' => $url]);
-
-            return (new MailMessage)
-                ->subject('Verify Your Email')
-                ->line('Click below to verify your email.')
-                ->action('Verify Email', html_entity_decode($url))
-                ->line('If you did not create an account, no further action is required.');
-        });
     }
 }
