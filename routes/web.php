@@ -15,7 +15,7 @@ Route::get('/', function () {
 });
 
 // GET /chat — for guests or default conversation
-Route::middleware(['web'])->group(function () {
+Route::middleware(['web', 'nocache'])->group(function () {
     Route::get('/chat', [ConversationController::class, 'show'])->name('chat');
 });
 Route::post('/chat', [ConversationController::class, 'send'])->name('chat.send');
