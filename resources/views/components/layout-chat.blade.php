@@ -14,7 +14,7 @@
       });
   </script>
   </head>
-  <body class="h-full bg-gray-50 text-gray-800">
+  <body class="bg-gray-50 text-gray-800">
     <!-- Mobile Overlay -->
     <div id="sidebarOverlay"
          class="fixed inset-0 z-30 hidden md:hidden"
