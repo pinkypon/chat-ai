@@ -63,6 +63,9 @@ class ConversationController extends Controller
         $ai = Http::post(env('AI_API_URL'), [
             'prompt' => $prompt,
         ]);
+        // $ai = Http::post('http://127.0.0.1:5050/generate', [
+        //     'prompt' => $prompt,
+        // ]);
         $aiResponse = $ai->json()['response'] ?? 'No response from AI.';
 
         if (Auth::check()) {

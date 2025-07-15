@@ -1,6 +1,6 @@
 @props(['conversations' => collect(), 'currentConversationId' => null])
 <!DOCTYPE html>
-<html lang="en" class="h-full" x-data="{ showModal: false, deleteUrl: '', ready: false }" x-init="ready = true">
+<html lang="en" class="min-h-[100dvh]" x-data="{ showModal: false, deleteUrl: '', ready: false }" x-init="ready = true">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -14,7 +14,7 @@
       });
   </script>
   </head>
-  <body class="bg-gray-50 text-gray-800">
+  <body class="min-h-[100dvh] bg-gray-50 text-gray-800">
     <!-- Mobile Overlay -->
     <div id="sidebarOverlay"
          class="fixed inset-0 z-30 hidden md:hidden"
@@ -22,7 +22,7 @@
     </div>
 
     <!-- Layout wrapper -->
-    <div class="flex h-screen overflow-hidden">
+    <div class="flex min-h-[100dvh] overflow-hidden">
 
       <!-- Authenticated Sidebar -->
       @auth
