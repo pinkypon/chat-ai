@@ -22,7 +22,7 @@
     </div>
 
     <!-- Layout wrapper -->
-    <div class="flex min-h-[100dvh] overflow-hidden">
+    <div class="flex h-screen overflow-hidden">
 
       <!-- Authenticated Sidebar -->
       @auth
