@@ -10,4 +10,4 @@
     ];
   }
 @endphp
-<img {{ $attributes($defaults) }}src="{{ asset('images/chat-bot.png') }}">
+<img {{ $attributes($defaults) }}src="{{ asset('images/test.png') }}">

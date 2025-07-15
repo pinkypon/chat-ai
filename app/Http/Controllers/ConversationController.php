@@ -55,19 +55,107 @@ class ConversationController extends Controller
         ]);
     }
 
+    // public function send(Request $request)
+    // {
+    //     $prompt = $request->input('prompt');
+
+    //     // 🔸 Call your local AI API
+    //     // $ai = Http::post(env('AI_API_URL'), [
+    //     //     'prompt' => $prompt,
+    //     // ]);
+    //     $ai = Http::post('http://127.0.0.1:5050/generate', [
+    //         'prompt' => $prompt,
+    //     ]);
+    //     $aiResponse = $ai->json()['response'] ?? 'No response from AI.';
+
+    //     if (Auth::check()) {
+    //         $conversationId = $request->input('conversation_id');
+    //         $conversation = null;
+
+    //         if ($conversationId) {
+    //             $conversation = Conversation::where('id', $conversationId)
+    //                 ->where('user_id', Auth::id())
+    //                 ->first();
+    //         }
+
+    //         if (! $conversation) {
+    //             $conversation = Conversation::create([
+    //                 'user_id' => Auth::id(),
+    //                 'title'   => Str::limit($prompt, 30),
+    //             ]);
+    //         }
+
+    //         Message::create([
+    //             'conversation_id' => $conversation->id,
+    //             'role'            => 'user',
+    //             'content'         => $prompt,
+    //         ]);
+    //         Message::create([
+    //             'conversation_id' => $conversation->id,
+    //             'role'            => 'assistant',
+    //             'content'         => $aiResponse,
+    //         ]);
+
+    //         // ✅ Return JSON instead of redirect
+    //         return response()->json([
+    //             'response' => $aiResponse,
+    //             'conversation_id' => $conversation->id,
+    //         ]);
+    //     }
+
+    //     // 🔸 Guest logic
+    //     $guest = session('guest_messages', []);
+    //     $guest[] = ['role' => 'user', 'content' => $prompt];
+    //     $guest[] = ['role' => 'assistant', 'content' => $aiResponse];
+    //     session(['guest_messages' => $guest]);
+
+    //     return response()->json([
+    //         'response' => $aiResponse,
+    //     ]);
+    // }
+
+
     public function send(Request $request)
     {
         $prompt = $request->input('prompt');
 
-        // 🔸 Call your local AI API
-        $ai = Http::post(env('AI_API_URL'), [
-            'prompt' => $prompt,
-        ]);
-        // $ai = Http::post('http://127.0.0.1:5050/generate', [
-        //     'prompt' => $prompt,
-        // ]);
-        $aiResponse = $ai->json()['response'] ?? 'No response from AI.';
+        // 🔸 Call OpenRouter API (DeepSeek, educational prompt template)
+        $ai = Http::withHeaders([
+            'Authorization' => 'Bearer ' . env('OPENROUTER_API_KEY'),
+            'HTTP-Referer' => 'https://chat-ai-uify.onrender.com', // Use 'https://yourdomain.com' in production 'http://chat-ai.test'
+            'Content-Type' => 'application/json',
+        ])->post('https://openrouter.ai/api/v1/chat/completions', [
+            'model' => 'deepseek/deepseek-chat-v3-0324:free',
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => <<<EOT
+                    You are an expert AI tutor who explains topics clearly using plain text formatting.
 
+                    When explaining formulas, do NOT use dashes (-) or bullet points. Instead, explain variables like this:
+
+                    E = energy  
+                    m = mass  
+                    c = speed of light (≈ 3 × 10^8 m/s)
+
+                    Do not use LaTeX or Markdown. Just use clean plain text with line breaks. This should be suitable for reading in a chat app or mobile device.
+
+                    If the question is not educational, respond with: "I'm here to help with educational topics only."
+                    EOT
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
+                ],
+            ],
+            'temperature' => 0.4,
+            'top_p' => 0.9,
+            'max_tokens' => 500,
+        ]);
+
+        $aiResponse = $ai->json()['choices'][0]['message']['content'] ?? 'No response from AI.';
+
+        // 🔐 Logged-in user
         if (Auth::check()) {
             $conversationId = $request->input('conversation_id');
             $conversation = null;
@@ -81,29 +169,28 @@ class ConversationController extends Controller
             if (! $conversation) {
                 $conversation = Conversation::create([
                     'user_id' => Auth::id(),
-                    'title'   => Str::limit($prompt, 30),
+                    'title' => Str::limit($prompt, 30),
                 ]);
             }
 
             Message::create([
                 'conversation_id' => $conversation->id,
-                'role'            => 'user',
-                'content'         => $prompt,
+                'role' => 'user',
+                'content' => $prompt,
             ]);
             Message::create([
                 'conversation_id' => $conversation->id,
-                'role'            => 'assistant',
-                'content'         => $aiResponse,
+                'role' => 'assistant',
+                'content' => $aiResponse,
             ]);
 
-            // ✅ Return JSON instead of redirect
             return response()->json([
                 'response' => $aiResponse,
                 'conversation_id' => $conversation->id,
             ]);
         }
 
-        // 🔸 Guest logic
+        // 👤 Guest user logic
         $guest = session('guest_messages', []);
         $guest[] = ['role' => 'user', 'content' => $prompt];
         $guest[] = ['role' => 'assistant', 'content' => $aiResponse];
@@ -113,6 +200,7 @@ class ConversationController extends Controller
             'response' => $aiResponse,
         ]);
     }
+
 
     public function newChat(Request $request)
     {

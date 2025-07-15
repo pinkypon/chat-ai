@@ -3,7 +3,9 @@
   <!-- Left content -->
   <div class="w-full md:w-1/2 text-center md:text-left">
     <x-page-heading>Chat with ChatAI</x-page-heading>
-    <x-paragraph-text>Experience natural conversations powered by cutting-edge AI. ChatAI adapts to your context and helps you communicate better, faster.</x-paragraph-text>
+    <x-paragraph-text>
+    Experience natural conversations powered by open-source AI. ChatAI is designed for educational purposes only and may not always provide perfect or fully accurate responses — use it to learn, explore ideas, and ask questions responsibly.
+    </x-paragraph-text>
     <!-- {{ config('app.url') }} -->
     <a href="/chat" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
       Get Started

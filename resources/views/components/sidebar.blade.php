@@ -7,9 +7,9 @@
               md:block flex flex-col">
 
   <!-- Top: Logo + Close -->
-  <div class="flex justify-between items-center mb-6">
+  <div class="flex justify-between items-center mb-3">
     <div class="font-bold items-center">
-      <a href="/">
+      <a href="/" class="inline-block px-2 py-1 rounded-lg transition hover:bg-gray-200">
         <x-logo />
       </a>
     </div>
@@ -76,11 +76,13 @@
     <button @click="open = !open"
             class="w-full flex items-center px-4 py-2 text-sm hover:bg-gray-100 rounded-lg text-gray-700">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500"
-           fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M5.121 17.804A13.937 13.937 0 0112 15c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
-      {{ Auth::user()->email }}
+      <span class="truncate block max-w-[12rem]" title="{{ Auth::user()->email }}">
+        {{ Auth::user()->email }}adasdas
+      </span>
     </button>
     <div x-show="open" x-cloak @click.outside="open = false"
          class="absolute left-0 bottom-[calc(100%+0.5rem)] w-full bg-white rounded shadow-md z-50">

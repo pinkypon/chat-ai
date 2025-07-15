@@ -35,10 +35,10 @@
           <!-- Top -->
           <div>
             <div class="flex justify-between items-center mb-6">
-              <div class="text-xl font-bold flex items-center justify-between w-[100px]">
+              <a href="/" class="text-xl font-bold flex items-center justify-between w-[100px] rounded-xl py-1 px-1 transition hover:bg-gray-200">
                 <x-page-heading-chat>ChatAI</x-page-heading-chat>
                 <x-logo />
-              </div>
+              </a>
               <button class="text-gray-500 hover:text-black text-2xl" onclick="toggleSidebar(false)">
                 &times;
               </button>

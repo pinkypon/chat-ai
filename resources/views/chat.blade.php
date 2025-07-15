@@ -28,9 +28,10 @@
               <path stroke-linecap="round" stroke-linejoin="round"
                     d="M5.121 17.804A13.937 13.937 0 0112 15c2.5 0 4.847.657 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            {{ Auth::user()->email }}
+            <span class="truncate block max-w-[12rem]" title="{{ Auth::user()->email }}">
+              {{ Auth::user()->email }}
+            </span>
           </div>
-
           <!-- Log out -->
           <form action="/logout" method="POST">
             @csrf
