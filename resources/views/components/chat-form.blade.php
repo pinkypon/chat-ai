@@ -22,7 +22,7 @@
       const placeholder = document.getElementById('chatPlaceholder');
       if (placeholder) placeholder.remove();
 
-      // 👤 Add user message
+      //  Add user message
       chatBox.insertAdjacentHTML('beforeend', `
         <div class='bg-blue-100 text-blue-900 p-4 rounded-lg max-w-xl ml-auto'>
           ${this.prompt}
@@ -30,7 +30,7 @@
       `);
       this.scrollToBottom();
 
-      // ⏳ Add AI typing indicator
+      //  Add AI typing indicator
       const typing = document.createElement('div');
       typing.id = 'aiTyping';
       typing.innerHTML = `
@@ -59,8 +59,17 @@
           }),
         });
 
-        if (!response.ok) throw new Error('Network error');
-        const data = await response.json();
+        let data;
+        if (!response.ok) {
+          try {
+            data = await response.json();
+            throw new Error(data.error || `HTTP ${response.status}`);
+          } catch (jsonError) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+          }
+        }
+
+        data = await response.json();
         typing.remove();
 
         if (data.conversation_id) {
@@ -71,21 +80,24 @@
           this.conversationId = data.conversation_id;
         }
 
-        // 🤖 Add AI message
-        chatBox.insertAdjacentHTML('beforeend', `
-          <div class='bg-gray-200 text-gray-900 p-4 rounded-lg max-w-xl mr-auto animate-fade-in'>
-            ${data.response}
-          </div>
-        `);
+        chatBox.insertAdjacentHTML('beforeend', data.html);
         this.prompt = '';
         Alpine.store('chat').loading = false;
         this.scrollToBottom();
 
-      } catch (err) {
-        typing.remove();
-        alert('Error: ' + err.message);
-        Alpine.store('chat').loading = false;
-      }
+        } catch (err) {
+          typing.remove();
+
+          // Show AI error as a red chat bubble
+          chatBox.insertAdjacentHTML('beforeend', `
+            <div class='bg-red-100 text-red-900 p-4 rounded-lg max-w-xl mr-auto'>
+              <strong>AI Error:</strong> ${err.message}
+            </div>
+          `);
+
+          Alpine.store('chat').loading = false;
+          this.scrollToBottom();
+        }
     }
   }"
   x-init="scrollToBottom()"
@@ -109,17 +121,24 @@
     <div class="flex justify-end">
       <button
         type="submit"
-        class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        class="bg-blue-600 text-white rounded-full p-2 hover:bg-blue-700 disabled:opacity-50"
         :disabled="Alpine.store('chat').loading || !prompt.trim()"
       >
-        <span x-show="!Alpine.store('chat').loading">Send</span>
+        <!--  Default Send Arrow -->
+        <span x-show="!Alpine.store('chat').loading" class="flex items-center justify-center" x-cloak>
+          <!-- Up arrow icon -->
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
+        </span>
+
+        <!--  Loading Spinner -->
         <span x-show="Alpine.store('chat').loading" x-cloak class="flex items-center gap-2 text-sm text-white">
           <svg class="w-5 h-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <circle class="opacity-75" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
                     stroke-linecap="round" stroke-dasharray="80" stroke-dashoffset="60" />
           </svg>
-          Sending...
         </span>
       </button>
     </div>

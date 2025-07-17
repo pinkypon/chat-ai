@@ -87,8 +87,7 @@
     }
   });
 </script>
-
 <!-- Modal Component -->
 <x-chat-delete-modal />
-  </body>
+</body>
 </html>

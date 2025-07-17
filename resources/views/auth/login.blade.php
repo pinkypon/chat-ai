@@ -2,10 +2,12 @@
   @section('title', 'Sign In - ChatAI')
   <div class="w-full max-w-sm sm:max-w-md">
     <!-- Logo + Name -->
-    <div class="flex justify-center items-center gap-2 mb-6">
-      <x-page-heading>ChatAI</x-page-heading>
-      <x-logo :large="true"></x-logo>
-    </div>
+    <a href="/">
+      <div class="flex justify-center items-center gap-2 mb-6">
+        <x-page-heading>ChatAI</x-page-heading>
+        <x-logo :large="true"></x-logo>
+      </div>
+    </a>
 
     <!-- Sign In Card -->
     <div class="bg-white p-8 rounded-xl shadow-md w-full">

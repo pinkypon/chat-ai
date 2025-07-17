@@ -23,7 +23,7 @@ class ConversationController extends Controller
                                 ->latest()
                                 ->get();
 
-            // ✅ Load messages only if conversation is selected
+            //  Load messages only if conversation is selected
             if ($id) {
                 $conversation = Conversation::with(['messages' => function ($query) {
                     $query->orderBy('created_at');
@@ -40,7 +40,7 @@ class ConversationController extends Controller
                 }
             }
         } else {
-            // ✅ Clear guest session only if not just sent and not AJAX
+            //  Clear guest session only if not just sent and not AJAX
             if (! $request->ajax() && ! session()->has('just_sent')) {
                 $request->session()->forget('guest_messages');
             }
@@ -59,7 +59,7 @@ class ConversationController extends Controller
     // {
     //     $prompt = $request->input('prompt');
 
-    //     // 🔸 Call your local AI API
+    //     //  Call your local AI API
     //     // $ai = Http::post(env('AI_API_URL'), [
     //     //     'prompt' => $prompt,
     //     // ]);
@@ -96,14 +96,14 @@ class ConversationController extends Controller
     //             'content'         => $aiResponse,
     //         ]);
 
-    //         // ✅ Return JSON instead of redirect
+    //         // Return JSON instead of redirect
     //         return response()->json([
     //             'response' => $aiResponse,
     //             'conversation_id' => $conversation->id,
     //         ]);
     //     }
 
-    //     // 🔸 Guest logic
+    //     //  Guest logic
     //     $guest = session('guest_messages', []);
     //     $guest[] = ['role' => 'user', 'content' => $prompt];
     //     $guest[] = ['role' => 'assistant', 'content' => $aiResponse];
@@ -119,87 +119,135 @@ class ConversationController extends Controller
     {
         $prompt = $request->input('prompt');
 
-        // 🔸 Call OpenRouter API (DeepSeek, educational prompt template)
-        $ai = Http::withHeaders([
-            'Authorization' => 'Bearer ' . env('OPENROUTER_API_KEY'),
-            'HTTP-Referer' => 'https://chat-ai-uify.onrender.com', // Use 'https://yourdomain.com' in production 'http://chat-ai.test'
-            'Content-Type' => 'application/json',
-        ])->post('https://openrouter.ai/api/v1/chat/completions', [
-            'model' => 'deepseek/deepseek-chat-v3-0324:free',
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => <<<EOT
-                    You are an expert AI tutor who explains topics clearly using plain text formatting.
+        try {
+            // Call OpenRouter API securely
+            $ai = Http::withHeaders([
+                'Authorization' => 'Bearer ' . env('OPENROUTER_API_KEY'),
+                'HTTP-Referer' => config('app.url'),
+                'Content-Type' => 'application/json',
+            ])->post('https://openrouter.ai/api/v1/chat/completions', [
+                'model' => 'deepseek/deepseek-chat-v3-0324:free',
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => <<<EOT
+You are a professional AI tutor. You always respond using **strict Markdown syntax** and structured formatting.
 
-                    When explaining formulas, do NOT use dashes (-) or bullet points. Instead, explain variables like this:
+Rules:
+- Use `#` and `##` for headings
+- Use `1.`, `2.`, `3.` for numbered lists
+- Use `-` for indented bullet points
+- Use `**bold**` for emphasis
+- Use ``code`` for inline variables
+- Use triple backticks (```) for code blocks
+- Use `\\[ \\]` for math formulas
 
-                    E = energy  
-                    m = mass  
-                    c = speed of light (≈ 3 × 10^8 m/s)
+ IMPORTANT:
+- Never return unstructured plain text
+- Never describe Markdown
+- Every response must follow Markdown structure, even if not requested
+- This is your **default output format**, always.
 
-                    Do not use LaTeX or Markdown. Just use clean plain text with line breaks. This should be suitable for reading in a chat app or mobile device.
-
-                    If the question is not educational, respond with: "I'm here to help with educational topics only."
-                    EOT
+If the question is not educational, respond with:
+"I'm here to help with educational topics only."
+EOT
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => $prompt,
+                    ],
                 ],
-                [
-                    'role' => 'user',
-                    'content' => $prompt,
-                ],
-            ],
-            'temperature' => 0.4,
-            'top_p' => 0.9,
-            'max_tokens' => 500,
-        ]);
+                'temperature' => 0.4,
+                'top_p' => 0.9,
+                'max_tokens' => 500,
+            ]);
 
-        $aiResponse = $ai->json()['choices'][0]['message']['content'] ?? 'No response from AI.';
-
-        // 🔐 Logged-in user
-        if (Auth::check()) {
-            $conversationId = $request->input('conversation_id');
-            $conversation = null;
-
-            if ($conversationId) {
-                $conversation = Conversation::where('id', $conversationId)
-                    ->where('user_id', Auth::id())
-                    ->first();
+            // Check API errors (token limit or rate-limiting)
+            if ($ai->failed()) {
+                return response()->json([
+                    'error' => 'AI API request failed. Please try again later.',
+                ], $ai->status());
             }
 
-            if (! $conversation) {
-                $conversation = Conversation::create([
-                    'user_id' => Auth::id(),
-                    'title' => Str::limit($prompt, 30),
+            $aiResponse = $ai->json('choices.0.message.content') ?? 'No response from AI.';
+
+            //  Safe Markdown → HTML (pre-render Blade component)
+            try {
+                $html = view('components.chat-ai', ['content' => $aiResponse])->render();
+            } catch (\Throwable $e) {
+                if (app()->isLocal()) {
+                    logger()->error('Blade rendering failed', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                }
+
+                $html = '<div class="text-red-500">Error rendering AI message.</div>';
+            }
+
+            //  Authenticated user saving conversation
+            if (Auth::check()) {
+                $conversationId = $request->input('conversation_id');
+                $conversation = null;
+
+                if ($conversationId) {
+                    $conversation = Conversation::where('id', $conversationId)
+                        ->where('user_id', Auth::id())
+                        ->first();
+                }
+
+                if (! $conversation) {
+                    $conversation = Conversation::create([
+                        'user_id' => Auth::id(),
+                        'title' => Str::limit($prompt, 30),
+                    ]);
+                }
+
+                Message::create([
+                    'conversation_id' => $conversation->id,
+                    'role' => 'user',
+                    'content' => $prompt,
+                ]);
+
+                Message::create([
+                    'conversation_id' => $conversation->id,
+                    'role' => 'assistant',
+                    'content' => $aiResponse,
+                ]);
+
+                return response()->json([
+                    'response' => $aiResponse,
+                    'html' => $html,
+                    'conversation_id' => $conversation->id,
                 ]);
             }
 
-            Message::create([
-                'conversation_id' => $conversation->id,
-                'role' => 'user',
-                'content' => $prompt,
-            ]);
-            Message::create([
-                'conversation_id' => $conversation->id,
-                'role' => 'assistant',
-                'content' => $aiResponse,
-            ]);
+            //  Guest user
+            $guest = session('guest_messages', []);
+            $guest[] = ['role' => 'user', 'content' => $prompt];
+            $guest[] = ['role' => 'assistant', 'content' => $aiResponse];
+            session(['guest_messages' => $guest]);
 
             return response()->json([
                 'response' => $aiResponse,
-                'conversation_id' => $conversation->id,
+                'html' => $html,
             ]);
+
+        } catch (\Throwable $e) {
+            if (app()->isLocal()) {
+                logger()->error('AI request failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+
+            return response()->json([
+                'error' => 'Something went wrong. Please try again later.',
+            ], 500);
         }
-
-        // 👤 Guest user logic
-        $guest = session('guest_messages', []);
-        $guest[] = ['role' => 'user', 'content' => $prompt];
-        $guest[] = ['role' => 'assistant', 'content' => $aiResponse];
-        session(['guest_messages' => $guest]);
-
-        return response()->json([
-            'response' => $aiResponse,
-        ]);
     }
+
+
 
 
     public function newChat(Request $request)
