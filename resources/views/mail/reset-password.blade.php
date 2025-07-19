@@ -15,5 +15,5 @@ This link will expire in **60 minutes**.
 If you didn’t request a password reset, you can safely ignore this email.
 
 Thanks,<br>
-**The ChatAI Team**
+**ChatAI**
 @endcomponent

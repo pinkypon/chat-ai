@@ -53,7 +53,7 @@ class AuthController extends Controller
                 ->letters()
                 ->numbers()
                 ->symbols()
-                ->uncompromised()],
+            ],
         ]);
 
         $user = User::create($userAttributes);

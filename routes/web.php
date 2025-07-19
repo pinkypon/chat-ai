@@ -6,9 +6,9 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\GoogleController;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Validation\Rules\Password as PasswordFacade;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 
 Route::get('/', function () {
     return view('landing');
@@ -44,7 +44,7 @@ Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $requ
     $request->fulfill();
 
     return redirect()->route('chat');
-})->middleware(['auth', 'signed'])->name('verification.verify');
+})->middleware(['auth', 'signed', 'throttle:6,1'])->name('verification.verify');
 
 
 
@@ -80,18 +80,28 @@ Route::get('/reset-password/{token}', function (string $token) {
     return view('auth.reset-password', ['token' => $token]);
 })->middleware('guest')->name('password.reset');
 
+
+
 Route::post('/reset-password', function (Illuminate\Http\Request $request) {
     $request->validate([
         'token' => 'required',
         'email' => 'required|email',
-        'password' => 'required|min:6|confirmed',
+        'password' => [
+            'required',
+            'confirmed',
+            PasswordFacade::min(8)
+                ->mixedCase()
+                ->letters()
+                ->numbers()
+                ->symbols(),
+        ],
     ]);
 
     $status = Password::reset(
         $request->only('email', 'password', 'password_confirmation', 'token'),
         function ($user) use ($request) {
             $user->forceFill([
-                'password' => bcrypt($request->password)
+                'password' => $request->password, // 🔸 DO NOT manually hash if your User model handles it
             ])->save();
 
             event(new PasswordReset($user));
@@ -102,6 +112,7 @@ Route::post('/reset-password', function (Illuminate\Http\Request $request) {
         ? redirect()->route('login')->with('status', __($status))
         : back()->withErrors(['email' => [__($status)]]);
 })->middleware('guest')->name('password.update');
+
 
 
 

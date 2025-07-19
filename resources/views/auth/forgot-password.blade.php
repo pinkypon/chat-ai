@@ -1,9 +1,14 @@
 <x-layout-form>
+  @section('title', 'Forgot Password')
   <div class="w-full max-w-sm sm:max-w-md">
     <!-- Logo + Name -->
     <div class="flex justify-center items-center gap-2 mb-6">
-      <x-page-heading>ChatAI</x-page-heading>
-      <x-logo :large="true" />
+      <a href="/">
+        <div class="flex justify-center items-center gap-2 mb-6">
+          <x-page-heading>ChatAI</x-page-heading>
+          <x-logo :large="true"></x-logo>
+        </div>
+      </a>
     </div>
 
     <!-- Forgot Password Card -->
