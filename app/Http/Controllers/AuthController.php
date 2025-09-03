@@ -11,40 +11,46 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    // Show login page
     public function showLogin()
     {
         return view('auth.login');
     }
 
+    // Show register page
     public function showRegister()
     {
-        return view( 'auth.register');
+        return view('auth.register');
     }
 
+    // Handle login request
     public function login(Request $request)
     {
-        // validate
+        // Validate login input
         $attribute = request()->validate([
             'email' => ['required', 'email'],
             'password' => ['required']
         ]);
 
-        // attempt to login the user
-        if(! Auth::attempt($attribute)){
+        // Attempt to log in with given credentials
+        if (! Auth::attempt($attribute)) {
+            // If login fails, throw validation error
             throw ValidationException::withMessages([
-                'email' =>  'Sorry, those credentials do not match.'
+                'email' => 'Sorry, those credentials do not match.'
             ]);
         }
 
-        // regenerate the session token
+        // Regenerate session to prevent fixation
         request()->session()->regenerate();
 
-        // redirect
+        // Redirect to chat page after successful login
         return redirect('/chat');
     }
 
+    // Handle registration request
     public function register(Request $request)
     {
+        // Validate registration input
         $userAttributes = $request->validate([
             'name'     => ['required', 'string', 'max:255'],
             'email'    => ['required', 'email', 'unique:users,email'],
@@ -56,25 +62,32 @@ class AuthController extends Controller
             ],
         ]);
 
+        // Create user with validated attributes
         $user = User::create($userAttributes);
 
+        // Automatically log in the new user
         Auth::login($user);
 
-        // ✅ Send email verification
+        // Send email verification notification
         $user->sendEmailVerificationNotification();
 
-        // ✅ Redirect to verification page
+        // Redirect user to email verification notice page
         return redirect()->route('verification.notice');
     }
 
-
+    // Handle logout request
     public function destroy(Request $request)
     {
-        Auth::logout(); 
+        // Log out the authenticated user
+        Auth::logout();
 
+        // Invalidate current session
         $request->session()->invalidate();
+
+        // Regenerate CSRF token for security
         $request->session()->regenerateToken();
+
+        // Redirect to homepage
         return redirect('/');
     }
 }
-

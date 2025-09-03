@@ -22,5 +22,6 @@ class NoCacheHeaders
         $response->headers->set('Expires', 'Sat, 1 Jan 2000 00:00:00 GMT');
 
         return $response; // ✅ Don't forget this
-    }   
+    }
+    // go to app php bootstrap you still need to configure it there
 }

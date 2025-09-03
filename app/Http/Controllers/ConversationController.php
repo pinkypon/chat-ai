@@ -11,6 +11,9 @@ use Illuminate\Support\Str;
 
 class ConversationController extends Controller
 {
+    /**
+     * Display chat view with conversations and messages.
+     */
     public function show(Request $request, $id = null)
     {
         $messages               = [];
@@ -18,12 +21,12 @@ class ConversationController extends Controller
         $currentConversationId  = null;
 
         if (Auth::check()) {
-            // Get all conversations for this user (no eager loading needed here)
+            // Fetch all conversations for the logged-in user
             $conversations = Conversation::where('user_id', Auth::id())
                                 ->latest()
                                 ->get();
 
-            //  Load messages only if conversation is selected
+            // Load selected conversation and its messages if ID is provided
             if ($id) {
                 $conversation = Conversation::with(['messages' => function ($query) {
                     $query->orderBy('created_at');
@@ -40,11 +43,12 @@ class ConversationController extends Controller
                 }
             }
         } else {
-            //  Clear guest session only if not just sent and not AJAX
+            // For guests: reset session messages if not an AJAX request
             if (! $request->ajax() && ! session()->has('just_sent')) {
                 $request->session()->forget('guest_messages');
             }
 
+            // Load guest messages from session
             $messages = session('guest_messages', []);
         }
 
@@ -55,7 +59,7 @@ class ConversationController extends Controller
         ]);
     }
 
-    // public function send(Request $request)
+        // public function send(Request $request)
     // {
     //     $prompt = $request->input('prompt');
 
@@ -114,19 +118,21 @@ class ConversationController extends Controller
     //     ]);
     // }
 
-
+    /**
+     * Handle sending a message to the AI API and saving the conversation.
+     */
     public function send(Request $request)
     {
         $prompt = $request->input('prompt');
 
         try {
-            // Call OpenRouter API securely
+            // Send user prompt to OpenRouter AI API
             $ai = Http::withHeaders([
                 'Authorization' => 'Bearer ' . env('OPENROUTER_API_KEY'),
                 'HTTP-Referer' => config('app.url'),
                 'Content-Type' => 'application/json',
             ])->post('https://openrouter.ai/api/v1/chat/completions', [
-                'model' => 'deepseek/deepseek-chat-v3-0324:free',
+                'model' => 'deepseek/deepseek-chat-v3.1:free',
                 'messages' => [
                     [
                         'role' => 'system',
@@ -162,16 +168,17 @@ EOT
                 'max_tokens' => 500,
             ]);
 
-            // Check API errors (token limit or rate-limiting)
+            // If API call fails, return error response
             if ($ai->failed()) {
                 return response()->json([
                     'error' => 'AI API request failed. Please try again later.',
                 ], $ai->status());
             }
 
+            // Extract AI response text
             $aiResponse = $ai->json('choices.0.message.content') ?? 'No response from AI.';
 
-            //  Safe Markdown → HTML (pre-render Blade component)
+            // Render AI response into Blade component (safe HTML output)
             try {
                 $html = view('components.chat-ai', ['content' => $aiResponse])->render();
             } catch (\Throwable $e) {
@@ -181,21 +188,20 @@ EOT
                         'trace' => $e->getTraceAsString(),
                     ]);
                 }
-
                 $html = '<div class="text-red-500">Error rendering AI message.</div>';
             }
 
-            //  Authenticated user saving conversation
+            // Save conversation and messages for logged-in users
             if (Auth::check()) {
                 $conversationId = $request->input('conversation_id');
                 $conversation = null;
 
+                // If conversation exists, load it; otherwise, create a new one
                 if ($conversationId) {
                     $conversation = Conversation::where('id', $conversationId)
                         ->where('user_id', Auth::id())
                         ->first();
                 }
-
                 if (! $conversation) {
                     $conversation = Conversation::create([
                         'user_id' => Auth::id(),
@@ -203,18 +209,19 @@ EOT
                     ]);
                 }
 
+                // Store user and AI messages in database
                 Message::create([
                     'conversation_id' => $conversation->id,
                     'role' => 'user',
                     'content' => $prompt,
                 ]);
-
                 Message::create([
                     'conversation_id' => $conversation->id,
                     'role' => 'assistant',
                     'content' => $aiResponse,
                 ]);
 
+                // Return JSON response with AI reply and HTML
                 return response()->json([
                     'response' => $aiResponse,
                     'html' => $html,
@@ -222,7 +229,7 @@ EOT
                 ]);
             }
 
-            //  Guest user
+            // Guest user: store messages in session
             $guest = session('guest_messages', []);
             $guest[] = ['role' => 'user', 'content' => $prompt];
             $guest[] = ['role' => 'assistant', 'content' => $aiResponse];
@@ -234,6 +241,7 @@ EOT
             ]);
 
         } catch (\Throwable $e) {
+            // Catch unexpected errors and log details
             if (app()->isLocal()) {
                 logger()->error('AI request failed', [
                     'error' => $e->getMessage(),
@@ -247,24 +255,27 @@ EOT
         }
     }
 
-
-
-
+    /**
+     * Start a new chat session.
+     */
     public function newChat(Request $request)
     {
         if (Auth::check()) {
-            // Just go to /chat — a new conversation will be created when they send a message
+            // Authenticated: redirect to chat, new conversation will start on first message
             return redirect()->route('chat');
         }
 
-        // For guests, clear messages and go to /chat
+        // Guests: clear session messages and redirect to chat
         $request->session()->forget('guest_messages');
         return redirect()->route('chat');
     }
 
+    /**
+     * Delete a conversation (only if it belongs to the user).
+     */
     public function destroy(Conversation $conversation)
     {
-        // Ensure the authenticated user owns the conversation
+        // Ensure conversation belongs to the logged-in user
         abort_unless($conversation->user_id === Auth::id(), 403);
 
         $conversation->delete();

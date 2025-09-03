@@ -2,10 +2,11 @@
 
 <div
   x-data="{
-    prompt: '',
-    conversationId: '{{ $conversationId }}',
-    hasMessages: {{ !empty($messages) ? 'true' : 'false' }},
+    prompt: '',                               // The current user input (textarea)
+    conversationId: '{{ $conversationId }}',  // Current conversation ID (null if guest or new chat)
+    hasMessages: {{ !empty($messages) ? 'true' : 'false' }}, // Whether the chat already has messages
 
+    // Scrolls chat window to bottom after new message
     scrollToBottom() {
       this.$nextTick(() => {
         const el = document.querySelector('[x-ref=chatEnd]');
@@ -13,16 +14,17 @@
       });
     },
 
+    // Handles form submission (sending prompt to backend)
     async submit() {
-      if (!this.prompt.trim()) return;
-      Alpine.store('chat').loading = true;
+      if (!this.prompt.trim()) return;               // Ignore empty input
+      Alpine.store('chat').loading = true;           // Show loading state
       this.hasMessages = true;
 
       const chatBox = document.getElementById('chatMessages');
       const placeholder = document.getElementById('chatPlaceholder');
-      if (placeholder) placeholder.remove();
+      if (placeholder) placeholder.remove();         // Remove placeholder if any
 
-      //  Add user message
+      // Add user message bubble
       chatBox.insertAdjacentHTML('beforeend', `
         <div class='bg-blue-100 text-blue-900 p-4 rounded-lg max-w-xl ml-auto'>
           ${this.prompt}
@@ -30,7 +32,7 @@
       `);
       this.scrollToBottom();
 
-      //  Add AI typing indicator
+      // Add AI typing indicator bubble
       const typing = document.createElement('div');
       typing.id = 'aiTyping';
       typing.innerHTML = `
@@ -47,20 +49,23 @@
       this.scrollToBottom();
 
       try {
+        // Send request to Laravel backend
         const response = await fetch('{{ route('chat.send') }}', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',   // CSRF protection
           },
+          credentials: 'include',                   // Include cookies/session
           body: JSON.stringify({
             prompt: this.prompt,
-            conversation_id: this.conversationId,
+            conversation_id: this.conversationId,   // Send conversation ID if continuing one
           }),
         });
 
         let data;
         if (!response.ok) {
+          // Handle non-200 response (like 401, 429, 500)
           try {
             data = await response.json();
             throw new Error(data.error || `HTTP ${response.status}`);
@@ -70,8 +75,9 @@
         }
 
         data = await response.json();
-        typing.remove();
+        typing.remove(); // Remove typing indicator after response
 
+        // If a new conversation was created, redirect to it
         if (data.conversation_id) {
           if (!this.conversationId) {
             window.location.href = `/chat/${data.conversation_id}`;
@@ -80,32 +86,36 @@
           this.conversationId = data.conversation_id;
         }
 
+        // Insert AI response HTML (already rendered on server)
         chatBox.insertAdjacentHTML('beforeend', data.html);
-        this.prompt = '';
+        this.prompt = '';                            // Clear input
         Alpine.store('chat').loading = false;
         this.scrollToBottom();
 
-        } catch (err) {
-          typing.remove();
+      } catch (err) {
+        typing.remove();
 
-          // Show AI error as a red chat bubble
-          chatBox.insertAdjacentHTML('beforeend', `
-            <div class='bg-red-100 text-red-900 p-4 rounded-lg max-w-xl mr-auto'>
-              <strong>AI Error:</strong> ${err.message}
-            </div>
-          `);
+        // Show error message bubble if API request fails
+        chatBox.insertAdjacentHTML('beforeend', `
+          <div class='bg-red-100 text-red-900 p-4 rounded-lg max-w-xl mr-auto'>
+            <strong>AI Error:</strong> ${err.message}
+          </div>
+        `);
 
-          Alpine.store('chat').loading = false;
-          this.scrollToBottom();
-        }
+        Alpine.store('chat').loading = false;
+        this.scrollToBottom();
+      }
     }
   }"
-  x-init="scrollToBottom()"
+  x-init="scrollToBottom()" 
 >
+  <!-- Chat input form -->
   <form @submit.prevent="submit"
         class="bg-gray-400/20 rounded-2xl p-3 shadow flex flex-col gap-2">
+
     <input type="hidden" :value="conversationId">
 
+    <!-- Textarea input with auto-resize -->
     <div class="relative">
       <textarea
         x-model="prompt"
@@ -118,21 +128,21 @@
       ></textarea>
     </div>
 
+    <!-- Submit button -->
     <div class="flex justify-end">
       <button
         type="submit"
         class="bg-blue-600 text-white rounded-full p-2 hover:bg-blue-700 disabled:opacity-50"
         :disabled="Alpine.store('chat').loading || !prompt.trim()"
       >
-        <!--  Default Send Arrow -->
+        <!-- Default Send Icon -->
         <span x-show="!Alpine.store('chat').loading" class="flex items-center justify-center" x-cloak>
-          <!-- Up arrow icon -->
           <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
           </svg>
         </span>
 
-        <!--  Loading Spinner -->
+        <!-- Loading Spinner -->
         <span x-show="Alpine.store('chat').loading" x-cloak class="flex items-center gap-2 text-sm text-white">
           <svg class="w-5 h-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
