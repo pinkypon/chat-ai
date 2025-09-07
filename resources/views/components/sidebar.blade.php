@@ -99,20 +99,27 @@
     </button>
     <div x-show="open" x-cloak @click.outside="open = false"
          class="absolute left-0 bottom-[calc(100%+0.5rem)] w-full bg-white rounded shadow-md z-50">
-      <form action="{{ route('logout') }}" method="POST">
-        @csrf
-        @method('DELETE')
-          <button type="submit"
-                  class="flex items-center gap-3 w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
-            <!-- Logout Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-500" fill="none"
-                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 11-4 0v-1m0-8v1a2 2 0 104 0V7" />
-            </svg>
-            Log out
-          </button>
-      </form>
+        <form x-ref="logoutForm" action="{{ route('logout') }}" method="POST">
+            @csrf
+            @method('DELETE')
+            <button
+                type="submit"
+                class="flex items-center gap-3 w-full text-left px-4 py-2 text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                @click.prevent="
+                    $el.disabled = true;
+                    $refs.logoutText.innerText = 'Logging out…';
+                    $refs.logoutForm.requestSubmit();
+                "
+            >
+                <!-- Logout Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-500" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 11-4 0v-1m0-8v1a2 2 0 104 0V7" />
+                </svg>
+                <span x-ref="logoutText">Log out</span>
+            </button>
+        </form>
     </div>
   </div>
 </aside>
