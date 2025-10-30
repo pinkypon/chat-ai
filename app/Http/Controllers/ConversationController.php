@@ -121,140 +121,187 @@ class ConversationController extends Controller
     /**
      * Handle sending a message to the AI API and saving the conversation.
      */
-    public function send(Request $request)
-    {
-        $prompt = $request->input('prompt');
+public function send(Request $request)
+{
+    $prompt = $request->input('prompt');
 
-        try {
-            // Send user prompt to OpenRouter AI API
-            $ai = Http::withHeaders([
-                'Authorization' => 'Bearer ' . env('OPENROUTER_API_KEY'),
-                'HTTP-Referer' => config('app.url'),
-                'Content-Type' => 'application/json',
-            ])->post('https://openrouter.ai/api/v1/chat/completions', [
-                'model' => 'deepseek/deepseek-chat-v3.1:free',
-                'messages' => [
+    try {
+        // Send user prompt to Google Gemini API
+        $ai = Http::timeout(30)
+            ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' . env('GEMINI_API_KEY'), [
+                'contents' => [
                     [
-                        'role' => 'system',
-                        'content' => <<<EOT
-You are a professional AI tutor. You always respond using **strict Markdown syntax** and structured formatting.
-
-Rules:
-- Use `#` and `##` for headings
-- Use `1.`, `2.`, `3.` for numbered lists
-- Use `-` for indented bullet points
-- Use `**bold**` for emphasis
-- Use ``code`` for inline variables
-- Use triple backticks (```) for code blocks
-- Use `\\[ \\]` for math formulas
-
- IMPORTANT:
-- Never return unstructured plain text
-- Never describe Markdown
-- Every response must follow Markdown structure, even if not requested
-- This is your **default output format**, always.
-
-If the question is not educational, respond with:
-"I'm here to help with educational topics only."
-EOT
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
+                        'parts' => [
+                            [
+                                'text' => "You are a professional AI tutor. You always respond using **strict Markdown syntax** and structured formatting.\n\nRules:\n- Use `#` and `##` for headings\n- Use `1.`, `2.`, `3.` for numbered lists\n- Use `-` for indented bullet points\n- Use `**bold**` for emphasis\n- Use `code` for inline variables\n- Use triple backticks (```) for code blocks\n- Use \\[ \\] for math formulas\n\nIMPORTANT:\n- Never return unstructured plain text\n- Never describe Markdown\n- Every response must follow Markdown structure, even if not requested\n- This is your **default output format**, always.\n\nIf the question is not educational, respond with:\n\"I'm here to help with educational topics only.\"\n\nUser question: " . $prompt
+                            ]
+                        ]
+                    ]
                 ],
-                'temperature' => 0.4,
-                'top_p' => 0.9,
-                'max_tokens' => 500,
+                'generationConfig' => [
+                    'temperature' => 0.4,
+                    'topP' => 0.9,
+                    // 'maxOutputTokens' => 500, for testing
+                    'maxOutputTokens' => 2048,
+                ]
             ]);
 
-            // If API call fails, return error response
-            if ($ai->failed()) {
-                return response()->json([
-                    'error' => 'AI API request failed. Please try again later.',
-                ], $ai->status());
+        // Enhanced error handling for API failures
+        if ($ai->failed()) {
+            $statusCode = $ai->status();
+            $errorBody = $ai->json();
+            $errorMessage = 'AI API request failed.';
+
+            // Extract specific error message
+            if (isset($errorBody['error']['message'])) {
+                $errorMessage = $errorBody['error']['message'];
             }
 
-            // Extract AI response text
-            $aiResponse = $ai->json('choices.0.message.content') ?? 'No response from AI.';
+            logger()->error('Gemini API Error', [
+                'status' => $statusCode,
+                'error_body' => $errorBody,
+                'raw_body' => $ai->body(),
+            ]);
 
-            // Render AI response into Blade component (safe HTML output)
-            try {
-                $html = view('components.chat-ai', ['content' => $aiResponse])->render();
-            } catch (\Throwable $e) {
-                if (app()->isLocal()) {
-                    logger()->error('Blade rendering failed', [
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
-                    ]);
-                }
-                $html = '<div class="text-red-500">Error rendering AI message.</div>';
+            return response()->json([
+                'error' => app()->isLocal() 
+                    ? "API Error ({$statusCode}): {$errorMessage}" 
+                    : 'AI service is currently unavailable. Please try again later.',
+                'debug' => app()->isLocal() ? $errorBody : null,
+            ], $statusCode);
+        }
+
+        // Extract AI response text
+        $aiResponse = $ai->json('candidates.0.content.parts.0.text');
+        
+        if (empty($aiResponse)) {
+            logger()->warning('Empty AI response received', [
+                'full_response' => $ai->json(),
+            ]);
+            $aiResponse = 'No response from AI. Please try again.';
+        }
+
+        // Clean up Gemini's response - remove code block wrappers if present
+        // Remove opening ```markdown or ``` at start
+        $aiResponse = preg_replace('/^\s*```(?:markdown)?\s*\n/i', '', $aiResponse);
+        // Remove closing ``` at end
+        $aiResponse = preg_replace('/\n\s*```\s*$/i', '', $aiResponse);
+        // Trim any extra whitespace
+        $aiResponse = trim($aiResponse);
+
+        // Render AI response into Blade component
+        try {
+            $html = view('components.chat-ai', ['content' => $aiResponse])->render();
+        } catch (\Throwable $e) {
+            logger()->error('Blade rendering failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            $html = '<div class="text-red-500">Error rendering AI message.</div>';
+            
+            if (app()->isLocal()) {
+                $html .= '<div class="text-sm text-gray-600 mt-2">Debug: ' . e($e->getMessage()) . '</div>';
             }
+        }
 
-            // Save conversation and messages for logged-in users
-            if (Auth::check()) {
-                $conversationId = $request->input('conversation_id');
-                $conversation = null;
+        // Save conversation and messages for logged-in users
+        if (Auth::check()) {
+            $conversationId = $request->input('conversation_id');
+            $conversation = null;
 
-                // If conversation exists, load it; otherwise, create a new one
-                if ($conversationId) {
-                    $conversation = Conversation::where('id', $conversationId)
-                        ->where('user_id', Auth::id())
-                        ->first();
-                }
-                if (! $conversation) {
+            if ($conversationId) {
+                $conversation = Conversation::where('id', $conversationId)
+                    ->where('user_id', Auth::id())
+                    ->first();
+            }
+            
+            if (!$conversation) {
+                try {
                     $conversation = Conversation::create([
                         'user_id' => Auth::id(),
                         'title' => Str::limit($prompt, 30),
                     ]);
+                } catch (\Throwable $e) {
+                    logger()->error('Failed to create conversation', [
+                        'error' => $e->getMessage(),
+                        'user_id' => Auth::id(),
+                    ]);
+                    
+                    return response()->json([
+                        'error' => 'Failed to save conversation. Please try again.',
+                    ], 500);
                 }
+            }
 
-                // Store user and AI messages in database
+            try {
                 Message::create([
                     'conversation_id' => $conversation->id,
                     'role' => 'user',
                     'content' => $prompt,
                 ]);
+                
                 Message::create([
                     'conversation_id' => $conversation->id,
                     'role' => 'assistant',
                     'content' => $aiResponse,
                 ]);
-
-                // Return JSON response with AI reply and HTML
-                return response()->json([
-                    'response' => $aiResponse,
-                    'html' => $html,
+            } catch (\Throwable $e) {
+                logger()->error('Failed to save messages', [
+                    'error' => $e->getMessage(),
                     'conversation_id' => $conversation->id,
                 ]);
             }
 
-            // Guest user: store messages in session
+            return response()->json([
+                'response' => $aiResponse,
+                'html' => $html,
+                'conversation_id' => $conversation->id,
+            ]);
+        }
+
+        // Guest user: store messages in session
+        try {
             $guest = session('guest_messages', []);
             $guest[] = ['role' => 'user', 'content' => $prompt];
             $guest[] = ['role' => 'assistant', 'content' => $aiResponse];
             session(['guest_messages' => $guest]);
-
-            return response()->json([
-                'response' => $aiResponse,
-                'html' => $html,
-            ]);
-
         } catch (\Throwable $e) {
-            // Catch unexpected errors and log details
-            if (app()->isLocal()) {
-                logger()->error('AI request failed', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-            }
-
-            return response()->json([
-                'error' => 'Something went wrong. Please try again later.',
-            ], 500);
+            logger()->warning('Failed to save guest messages to session', [
+                'error' => $e->getMessage(),
+            ]);
         }
-    }
 
+        return response()->json([
+            'response' => $aiResponse,
+            'html' => $html,
+        ]);
+
+    } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        logger()->error('Network connection failed', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'error' => 'Network connection failed. Please check your internet connection.',
+            'debug' => app()->isLocal() ? $e->getMessage() : null,
+        ], 503);
+        
+    } catch (\Throwable $e) {
+        logger()->error('AI request failed', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+
+        return response()->json([
+            'error' => 'Something went wrong. Please try again later.',
+            'debug' => app()->isLocal() ? [
+                'message' => $e->getMessage(),
+                'type' => get_class($e),
+            ] : null,
+        ], 500);
+    }
+}
     /**
      * Start a new chat session.
      */
