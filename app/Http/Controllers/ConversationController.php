@@ -128,7 +128,7 @@ public function send(Request $request)
     try {
         // Send user prompt to Google Gemini API
         $ai = Http::timeout(30)
-            ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' . env('GEMINI_API_KEY'), [
+            ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=' . env('GEMINI_API_KEY'), [
                 'contents' => [
                     [
                         'parts' => [
